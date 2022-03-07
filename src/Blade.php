@@ -1,7 +1,5 @@
 <?php
-
 namespace Adimancifi\Blade;
-
 
 use Illuminate\Container\Container;
 use Illuminate\Events\Dispatcher;
@@ -18,44 +16,27 @@ class Blade
 	protected $viewPath;
 	protected $compilerPath;
 	
-	public function __construct()
+	public function __construct($viewPath, $compilerPath)
 	{
 		/**
 		 * Conto : 
 		 * $blade = new Blade(VIEWPATH."view/blade", VIEWPATH."view/blade/cache");
 		 * 
-		 * $blade->setup([
-		 * 		'viewPath' => VIEWPATH."view/blade",
-		 * 		'compilerPath' => VIEWPATH."view/blade/cache"
-		 * ]);
-		 * $blade->render('myview', ['nama' => 'adiman']);
-		 * 
 		*/
 
+		$this->viewPath = [$viewPath];
+		$this->compilerPath = $compilerPath;
 	}
 
-	public function setup(array $varS)
+	public function render($viewName, array $varData)
 	{
-		foreach ($varS as $var) {
-			$this->$var = $var;
-		}
-		return $this;
-	}
-	
-	public function render($viewName, array $templateData)
-	{
-		// Configuration
-		// Note that you can set several directories where your templates are located
-		$pathsToTemplates = $this->viewPath;
-		$pathToCompiledTemplates = $this->compilerPath;
-
 		// Dependencies
 		$filesystem = new Filesystem;
 		$eventDispatcher = new Dispatcher(new Container);
 
 		// Create View Factory capable of rendering PHP and Blade templates
 		$viewResolver = new EngineResolver;
-		$bladeCompiler = new BladeCompiler($filesystem, $pathToCompiledTemplates);
+		$bladeCompiler = new BladeCompiler($filesystem, $this->compilerPath);
 
 		$viewResolver->register('blade', function () use ($bladeCompiler) {
 			return new CompilerEngine($bladeCompiler);
@@ -65,10 +46,10 @@ class Blade
 			return new PhpEngine;
 		});
 
-		$viewFinder = new FileViewFinder($filesystem, $pathsToTemplates);
+		$viewFinder = new FileViewFinder($filesystem, $this->viewPath);
 		$viewFactory = new Factory($viewResolver, $viewFinder, $eventDispatcher);
 
 		// Render template
-		return $viewFactory->make($viewName, $templateData)->render();
+		return $viewFactory->make($viewName, $varData)->render();
 	}
 } // end class
