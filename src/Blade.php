@@ -2,133 +2,73 @@
 
 namespace Adimancifi\Blade;
 
+
 use Illuminate\Container\Container;
-use Illuminate\Contracts\Container\Container as ContainerInterface;
-use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Contracts\View\Factory as FactoryContract;
-use Illuminate\Contracts\View\View;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Filesystem\Filesystem;
-use Illuminate\Support\Facades\Facade;
 use Illuminate\View\Compilers\BladeCompiler;
+use Illuminate\View\Engines\CompilerEngine;
+use Illuminate\View\Engines\EngineResolver;
+use Illuminate\View\Engines\PhpEngine;
 use Illuminate\View\Factory;
-use Illuminate\View\ViewServiceProvider;
+use Illuminate\View\FileViewFinder;
 
 class Blade implements FactoryContract
 {
-    /**
-     * @var Application
-     */
-    protected $container;
+	protected $viewPath;
+	protected $compilerPath;
+	
+	public function __construct()
+	{
+		/**
+		 * Conto : 
+		 * $blade = new Blade(VIEWPATH."view/blade", VIEWPATH."view/blade/cache");
+		 * 
+		 * $blade->setup([
+		 * 		'viewPath' => VIEWPATH."view/blade",
+		 * 		'compilerPath' => VIEWPATH."view/blade/cache"
+		 * ]);
+		 * $blade->render('myview', ['nama' => 'adiman']);
+		 * 
+		*/
 
-    /**
-     * @var Factory
-     */
-    private $factory;
+	}
 
-    /**
-     * @var BladeCompiler
-     */
-    private $compiler;
+	public function setup(array $varS)
+	{
+		foreach ($varS as $var) {
+			$this->$var = $var;
+		}
+		return $this;
+	}
+	
+	public function render($viewName, array $templateData)
+	{
+		// Configuration
+		// Note that you can set several directories where your templates are located
+		$pathsToTemplates = $this->viewPath;
+		$pathToCompiledTemplates = $this->compilerPath;
 
-    public function __construct($viewPaths, string $cachePath, ContainerInterface $container = null)
-    {
-        $this->container = $container ?: new Container;
+		// Dependencies
+		$filesystem = new Filesystem;
+		$eventDispatcher = new Dispatcher(new Container);
 
-        $this->setupContainer((array) $viewPaths, $cachePath);
-        (new ViewServiceProvider($this->container))->register();
+		// Create View Factory capable of rendering PHP and Blade templates
+		$viewResolver = new EngineResolver;
+		$bladeCompiler = new BladeCompiler($filesystem, $pathToCompiledTemplates);
 
-        $this->factory = $this->container->get('view');
-        $this->compiler = $this->container->get('blade.compiler');
-    }
+		$viewResolver->register('blade', function () use ($bladeCompiler) {
+			return new CompilerEngine($bladeCompiler);
+		});
 
-    public function render(string $view, array $data = [], array $mergeData = []): string
-    {
-        return $this->make($view, $data, $mergeData)->render();
-    }
+		$viewResolver->register('php', function () {
+			return new PhpEngine;
+		});
 
-    public function make($view, $data = [], $mergeData = []): View
-    {
-        return $this->factory->make($view, $data, $mergeData);
-    }
+		$viewFinder = new FileViewFinder($filesystem, $pathsToTemplates);
+		$viewFactory = new Factory($viewResolver, $viewFinder, $eventDispatcher);
 
-    public function compiler(): BladeCompiler
-    {
-        return $this->compiler;
-    }
-
-    public function directive(string $name, callable $handler)
-    {
-        $this->compiler->directive($name, $handler);
-    }
-    
-    public function if($name, callable $callback)
-    {
-        $this->compiler->if($name, $callback);
-    }
-
-    public function exists($view): bool
-    {
-        return $this->factory->exists($view);
-    }
-
-    public function file($path, $data = [], $mergeData = []): View
-    {
-        return $this->factory->file($path, $data, $mergeData);
-    }
-
-    public function share($key, $value = null)
-    {
-        return $this->factory->share($key, $value);
-    }
-
-    public function composer($views, $callback): array
-    {
-        return $this->factory->composer($views, $callback);
-    }
-
-    public function creator($views, $callback): array
-    {
-        return $this->factory->creator($views, $callback);
-    }
-
-    public function addNamespace($namespace, $hints): self
-    {
-        $this->factory->addNamespace($namespace, $hints);
-
-        return $this;
-    }
-
-    public function replaceNamespace($namespace, $hints): self
-    {
-        $this->factory->replaceNamespace($namespace, $hints);
-
-        return $this;
-    }
-
-    public function __call(string $method, array $params)
-    {
-        return call_user_func_array([$this->factory, $method], $params);
-    }
-
-    protected function setupContainer(array $viewPaths, string $cachePath)
-    {
-        $this->container->bindIf('files', function () {
-            return new Filesystem;
-        }, true);
-
-        $this->container->bindIf('events', function () {
-            return new Dispatcher;
-        }, true);
-
-        $this->container->bindIf('config', function () use ($viewPaths, $cachePath) {
-            return [
-                'view.paths' => $viewPaths,
-                'view.compiled' => $cachePath,
-            ];
-        }, true);
-        
-        Facade::setFacadeApplication($this->container);
-    }
-
+		// Render template
+		return $viewFactory->make($viewName, $templateData)->render();
+	}
 } // end class
