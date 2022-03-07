@@ -13,7 +13,7 @@ use Illuminate\View\Engines\PhpEngine;
 use Illuminate\View\Factory;
 use Illuminate\View\FileViewFinder;
 
-class Blade implements FactoryContract
+class Blade 
 {
 	protected $viewPath;
 	protected $compilerPath;
